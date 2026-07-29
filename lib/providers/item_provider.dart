@@ -28,8 +28,17 @@ class ItemNotifier extends StateNotifier<List<Item>> {
     await loadAll();
   }
 
-  Future<void> addTransaction(String code, int delta) async {
-    final tr = TransactionRecord(itemCode: code, delta: delta, timestamp: DateTime.now());
+  Future<void> addTransaction(String code, int delta, {String? note}) async {
+    final tr = TransactionRecord(itemCode: code, delta: delta, timestamp: DateTime.now(), note: note);
     await DatabaseHelper().insertTransaction(tr);
+  }
+
+  Future<List<TransactionRecord>> getAllTransactionsForDashboard() async {
+    return await DatabaseHelper().getAllTransactions();
+  }
+
+  Future<void> deleteItem(String code) async {
+    await DatabaseHelper().deleteItem(code);
+    await loadAll();
   }
 }

@@ -13,13 +13,48 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
+  int _todayIn = 0;
+  int _todayOut = 0;
 
+  @override
+  void initState() {
+    super.initState();
+    _loadDashboardData();
+  }
+
+  Future<void> _loadDashboardData() async {
+    final txs = await ref.read(itemProvider.notifier).getAllTransactionsForDashboard();
+    final now = DateTime.now();
+    int tIn = 0;
+    int tOut = 0;
+    for (var tx in txs) {
+      if (tx.timestamp.year == now.year && tx.timestamp.month == now.month && tx.timestamp.day == now.day) {
+        if (tx.delta > 0) tIn += tx.delta;
+        if (tx.delta < 0) tOut += tx.delta.abs();
+      }
+    }
+    if (mounted) {
+      setState(() {
+        _todayIn = tIn;
+        _todayOut = tOut;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    // We can call _loadDashboardData() when items change, or just rely on Riverpod state
+    // For simplicity, whenever build is called (e.g., coming back), we refresh the stats
+    _loadDashboardData();
+    
     final items = ref.watch(itemProvider);
     final totalItems = items.length;
     final totalStock = items.fold<int>(0, (sum, i) => sum + i.stock);
+    
+    // Low stock items (top 3)
+    final lowStockItems = items.where((i) => i.stock <= 5).toList()
+      ..sort((a, b) => a.stock.compareTo(b.stock));
+    final topLowStock = lowStockItems.take(3).toList();
 
     return Scaffold(
       appBar: AppBar(
@@ -46,14 +81,44 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            // Stats Grid
+            GridView.count(
+              crossAxisCount: 2,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              childAspectRatio: 1.3,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
               children: [
                 _buildStatCard('Total Items', totalItems.toString(), Colors.teal.shade300, Icons.inventory_2),
                 _buildStatCard('Total Stock', totalStock.toString(), Colors.orange.shade300, Icons.stacked_bar_chart),
+                _buildStatCard('Masuk Hari Ini', '+$_todayIn', Colors.green.shade400, Icons.arrow_downward),
+                _buildStatCard('Keluar Hari Ini', '-$_todayOut', Colors.red.shade400, Icons.arrow_upward),
               ],
             ),
             const SizedBox(height: 24),
+            
+            // Low Stock Warning
+            if (topLowStock.isNotEmpty) ...[
+              const Text('⚠️ Peringatan Stok Menipis', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.redAccent)),
+              const SizedBox(height: 8),
+              Card(
+                elevation: 3,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                child: Column(
+                  children: topLowStock.map((item) => ListTile(
+                    leading: const Icon(Icons.warning_amber_rounded, color: Colors.orange),
+                    title: Text(item.name),
+                    trailing: Text('${item.stock} pcs', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.red)),
+                    onTap: () => context.go('/item/${item.code}'),
+                  )).toList(),
+                ),
+              ),
+              const SizedBox(height: 24),
+            ],
+
+            const Text('Menu Utama', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.teal)),
+            const SizedBox(height: 8),
             _buildActionCard(
               title: 'Daftar Barang',
               icon: Icons.list_alt,

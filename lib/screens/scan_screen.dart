@@ -32,85 +32,62 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
       if (mounted) setState(() {});
     }
   }
+
   Future<void> _captureAndRecognize() async {
-  if (_controller == null || !_controller!.value.isInitialized) return;
+    if (_controller == null || !_controller!.value.isInitialized) return;
 
-  setState(() {
-    _isProcessing = true;
-  });
+    setState(() {
+      _isProcessing = true;
+    });
 
-  try {
-    final image = await _controller!.takePicture();
+    try {
+      final image = await _controller!.takePicture();
+      final inputImage = InputImage.fromFilePath(image.path);
+      final textRecognizer = TextRecognizer(script: TextRecognitionScript.latin);
+      final recognizedText = await textRecognizer.processImage(inputImage);
+      await textRecognizer.close();
 
-    final inputImage = InputImage.fromFilePath(image.path);
+      final text = recognizedText.text;
+      final regex = RegExp(r'T\.\d+\.\d+');
+      final match = regex.firstMatch(text);
 
-    final textRecognizer = TextRecognizer(
-      script: TextRecognitionScript.latin,
-    );
-
-    final recognizedText = await textRecognizer.processImage(inputImage);
-
-    await textRecognizer.close();
-
-    final text = recognizedText.text;
-
-    debugPrint("OCR RESULT:");
-    debugPrint(text);
-
-    // Cari kode barang format T.230001003.00470
-    final regex = RegExp(r'T\.\d+\.\d+');
-    final match = regex.firstMatch(text);
-
-    if (match == null) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Kode barang tidak ditemukan"),
-          ),
-        );
+      if (match == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Kode barang tidak ditemukan")));
+        }
+        return;
       }
-      return;
-    }
 
-    final code = match.group(0)!;
+      final code = match.group(0)!;
+      final item = await DatabaseHelper().getItem(code);
 
-    debugPrint("CODE FOUND: $code");
-
-    final item = await DatabaseHelper().getItem(code);
-
-    if (item == null) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("Barang $code tidak ditemukan"),
-          ),
-        );
+      if (item == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Barang $code tidak ditemukan")));
+        }
+        return;
       }
-      return;
-    }
 
-    if (mounted) {
-      context.push('/item/$code');
-    }
-
-  } catch (e) {
-    debugPrint("SCAN ERROR: $e");
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("Error scan: $e"),
-        ),
-      );
-    }
-  } finally {
-    if (mounted) {
-      setState(() {
-        _isProcessing = false;
-      });
+      if (mounted) {
+        context.push('/item/$code').then((_) {
+          if (mounted) {
+            setState(() { _isProcessing = false; });
+            _initializeCamera();
+          }
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error scan: $e")));
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isProcessing = false;
+        });
+      }
     }
   }
-}
 
   @override
   void dispose() {
@@ -118,13 +95,14 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
     super.dispose();
   }
 
-
-
   @override
   Widget build(BuildContext context) {
     if (_controller == null || !_controller!.value.isInitialized) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
     }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Scan Barang'),
@@ -147,12 +125,26 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
           CameraPreview(_controller!),
           if (_isProcessing)
             const Center(child: CircularProgressIndicator()),
+          Positioned(
+            bottom: 30,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                  backgroundColor: Colors.teal,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                  elevation: 5,
+                ),
+                onPressed: _isProcessing ? null : _captureAndRecognize,
+                icon: const Icon(Icons.camera_alt),
+                label: const Text('Scan Kode Barang', style: TextStyle(fontSize: 18)),
+              ),
+            ),
+          ),
         ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _isProcessing ? null : _captureAndRecognize,
-        icon: const Icon(Icons.camera),
-        label: const Text('Capture'),
       ),
     );
   }

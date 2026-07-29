@@ -22,7 +22,12 @@ class DatabaseHelper {
   Future<Database> _initDb() async {
     final databasesPath = await getDatabasesPath();
     final path = join(databasesPath, 'noventra.db');
-    return await openDatabase(path, version: 1, onCreate: _onCreate);
+    return await openDatabase(
+      path, 
+      version: 2, 
+      onCreate: _onCreate,
+      onUpgrade: _onUpgrade,
+    );
   }
 
   FutureOr<void> _onCreate(Database db, int version) async {
@@ -40,6 +45,7 @@ class DatabaseHelper {
         itemCode TEXT NOT NULL,
         delta INTEGER NOT NULL,
         timestamp TEXT NOT NULL,
+        note TEXT,
         FOREIGN KEY(itemCode) REFERENCES items(code)
       )
     ''');
@@ -63,6 +69,12 @@ class DatabaseHelper {
     }
   }
 
+  FutureOr<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      await db.execute('ALTER TABLE transactions ADD COLUMN note TEXT');
+    }
+  }
+
   // CRUD for items
   Future<void> insertItem(Item item) async {
     final db = await database;
@@ -82,6 +94,14 @@ class DatabaseHelper {
     final db = await database;
     final maps = await db.query('items');
     return maps.map((m) => Item.fromMap(m)).toList();
+  }
+
+  Future<void> deleteItem(String code) async {
+    final db = await database;
+    // Delete transactions associated with the item first
+    await db.delete('transactions', where: 'itemCode = ?', whereArgs: [code]);
+    // Delete the item
+    await db.delete('items', where: 'code = ?', whereArgs: [code]);
   }
 
   Future<void> updateStock(String code, int newStock) async {

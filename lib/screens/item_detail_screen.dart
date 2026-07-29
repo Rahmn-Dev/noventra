@@ -37,22 +37,53 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
     }
   }
 
-  Future<void> _adjustStock(int delta) async {
+  Future<void> _adjustStock(int delta, {String? note}) async {
     await ref.read(itemProvider.notifier).updateStock(widget.itemCode, delta);
-    await ref.read(itemProvider.notifier).addTransaction(widget.itemCode, delta);
+    await ref.read(itemProvider.notifier).addTransaction(widget.itemCode, delta, note: note);
     await _loadData();
   }
 
   void _showQuantityDialog({required bool isIn}) {
     final controller = TextEditingController();
+    final noteController = TextEditingController();
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(isIn ? 'Barang Masuk' : 'Barang Keluar'),
-        content: TextField(
-          controller: controller,
-          keyboardType: TextInputType.number,
-          decoration: const InputDecoration(labelText: 'Qty'),
+        content: StatefulBuilder(
+          builder: (context, setState) {
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  controller: controller,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'Qty'),
+                  autofocus: true,
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  children: [10, 50, 100, 500, 1000].map((val) => ActionChip(
+                    label: Text(isIn ? '+$val' : '-$val'),
+                    onPressed: () {
+                      final current = int.tryParse(controller.text) ?? 0;
+                      controller.text = (current + val).toString();
+                    },
+                  )).toList(),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: noteController,
+                  decoration: const InputDecoration(
+                    labelText: 'Catatan (Opsional)',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ],
+            );
+          },
         ),
         actions: [
           TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Batal')),
@@ -60,9 +91,16 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
             onPressed: () async {
               final qty = int.tryParse(controller.text) ?? 0;
               if (qty <= 0) return;
+              if (!isIn && qty > (_item?.stock ?? 0)) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Qty melebihi stok yang ada!')),
+                );
+                return;
+              }
+              final note = noteController.text.trim();
               Navigator.of(context).pop();
               final delta = isIn ? qty : -qty;
-              await _adjustStock(delta);
+              await _adjustStock(delta, note: note.isEmpty ? null : note);
             },
             child: const Text('Simpan'),
           ),
@@ -98,6 +136,36 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.go('/'),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.delete),
+            tooltip: 'Hapus Barang',
+            onPressed: () async {
+              final confirm = await showDialog<bool>(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text('Hapus Barang'),
+                  content: Text('Apakah Anda yakin ingin menghapus barang ${_item!.name}? Semua riwayat transaksi barang ini juga akan dihapus.'),
+                  actions: [
+                    TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Batal')),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+                      onPressed: () => Navigator.pop(context, true),
+                      child: const Text('Hapus'),
+                    ),
+                  ],
+                ),
+              );
+              if (confirm == true && mounted) {
+                await ref.read(itemProvider.notifier).deleteItem(widget.itemCode);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Barang berhasil dihapus')));
+                  context.go('/');
+                }
+              }
+            },
+          ),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),

@@ -17,6 +17,7 @@ class _StockOutPageState extends ConsumerState<StockOutPage> {
   CameraController? _controller;
   List<CameraDescription>? _cameras;
   bool _isProcessing = false;
+  bool _isDialogOpen = false;
 
   @override
   void initState() {
@@ -35,33 +36,60 @@ class _StockOutPageState extends ConsumerState<StockOutPage> {
 
   void _showQuantityDialog(Item item) {
     final controller = TextEditingController();
+    final noteController = TextEditingController();
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
         title: Text('Barang Keluar: ${item.name}'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Kode: ${item.code}'),
-            Text('Stok saat ini: ${item.stock}', style: const TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 12),
-            TextField(
-              controller: controller,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: 'Jumlah Qty Keluar',
-                border: OutlineInputBorder(),
-              ),
-              autofocus: true,
-            ),
-          ],
+        content: StatefulBuilder(
+          builder: (context, setState) {
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Kode: ${item.code}'),
+                Text('Stok saat ini: ${item.stock}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: controller,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Jumlah Qty Keluar',
+                    border: OutlineInputBorder(),
+                  ),
+                  autofocus: true,
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  children: [10, 50, 100, 500, 1000].map((val) => ActionChip(
+                    label: Text('-$val'),
+                    onPressed: () {
+                      final current = int.tryParse(controller.text) ?? 0;
+                      controller.text = (current + val).toString();
+                    },
+                  )).toList(),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: noteController,
+                  decoration: const InputDecoration(
+                    labelText: 'Catatan (Opsional)',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ],
+            );
+          },
         ),
         actions: [
           TextButton(
             onPressed: () {
               Navigator.of(context).pop();
+              _isDialogOpen = false;
+              _isProcessing = false;
+              if (mounted) setState(() {});
             },
             child: const Text('Batal', style: TextStyle(color: Colors.red)),
           ),
@@ -76,10 +104,12 @@ class _StockOutPageState extends ConsumerState<StockOutPage> {
                 );
                 return;
               }
+              final note = noteController.text.trim();
               Navigator.of(context).pop();
+              _isDialogOpen = false;
               
               await ref.read(itemProvider.notifier).updateStock(item.code, -qty);
-              await ref.read(itemProvider.notifier).addTransaction(item.code, -qty);
+              await ref.read(itemProvider.notifier).addTransaction(item.code, -qty, note: note.isEmpty ? null : note);
 
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -96,7 +126,7 @@ class _StockOutPageState extends ConsumerState<StockOutPage> {
   }
 
   Future<void> _captureAndRecognize() async {
-    if (_controller == null || !_controller!.value.isInitialized) return;
+    if (_controller == null || !_controller!.value.isInitialized || _isDialogOpen) return;
 
     setState(() {
       _isProcessing = true;
@@ -115,9 +145,7 @@ class _StockOutPageState extends ConsumerState<StockOutPage> {
 
       if (match == null) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Kode barang tidak ditemukan")),
-          );
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Kode barang tidak ditemukan")));
         }
         return;
       }
@@ -127,34 +155,29 @@ class _StockOutPageState extends ConsumerState<StockOutPage> {
 
       if (item == null) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("Barang $code tidak ditemukan")),
-          );
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Barang $code tidak ditemukan")));
         }
         return;
       }
 
       if (item.stock <= 0) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("Stok ${item.name} sudah habis")),
-          );
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Stok ${item.name} sudah habis")));
         }
         return;
       }
 
       if (mounted) {
+        _isDialogOpen = true;
         _showQuantityDialog(item);
       }
 
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Error scan: $e")),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error scan: $e")));
       }
     } finally {
-      if (mounted) {
+      if (mounted && !_isDialogOpen) {
         setState(() {
           _isProcessing = false;
         });
@@ -163,6 +186,7 @@ class _StockOutPageState extends ConsumerState<StockOutPage> {
   }
 
   void _showManualEntry() {
+    _isDialogOpen = true;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -193,7 +217,14 @@ class _StockOutPageState extends ConsumerState<StockOutPage> {
                         subtitle: Text('Kode: ${item.code} | Stok: ${item.stock}'),
                         onTap: () {
                           Navigator.pop(context); // Close bottom sheet
-                          _showQuantityDialog(item); // Open Qty Dialog
+                          if (item.stock <= 0) {
+                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Stok ${item.name} sudah habis")));
+                            _isDialogOpen = false;
+                            _isProcessing = false;
+                            if (mounted) setState(() {});
+                          } else {
+                            _showQuantityDialog(item); // Open Qty Dialog
+                          }
                         },
                       );
                     },
@@ -204,7 +235,13 @@ class _StockOutPageState extends ConsumerState<StockOutPage> {
           },
         );
       },
-    );
+    ).whenComplete(() {
+      if (_isDialogOpen && Navigator.canPop(context) == false) {
+          _isDialogOpen = false;
+          _isProcessing = false;
+          if (mounted) setState(() {});
+      }
+    });
   }
 
   @override
@@ -245,7 +282,7 @@ class _StockOutPageState extends ConsumerState<StockOutPage> {
       body: Stack(
         children: [
           CameraPreview(_controller!),
-          if (_isProcessing)
+          if (_isProcessing && !_isDialogOpen)
             const Center(child: CircularProgressIndicator()),
           Positioned(
             bottom: 30,
@@ -260,7 +297,7 @@ class _StockOutPageState extends ConsumerState<StockOutPage> {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
                   elevation: 5,
                 ),
-                onPressed: _isProcessing ? null : _captureAndRecognize,
+                onPressed: (_isProcessing || _isDialogOpen) ? null : _captureAndRecognize,
                 icon: const Icon(Icons.camera_alt),
                 label: const Text('Scan Kode Barang', style: TextStyle(fontSize: 18)),
               ),
