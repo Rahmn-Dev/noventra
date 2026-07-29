@@ -1,9 +1,11 @@
 import 'package:camera/camera.dart';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import '../providers/item_provider.dart';
 import '../models/item.dart';
+import '../widgets/scanner_overlay.dart';
 import 'package:go_router/go_router.dart';
 
 class StockOutPage extends ConsumerStatefulWidget {
@@ -134,23 +136,43 @@ class _StockOutPageState extends ConsumerState<StockOutPage> {
 
     try {
       final image = await _controller!.takePicture();
+      
+      final bytes = await File(image.path).readAsBytes();
+      final decodedImage = await decodeImageFromList(bytes);
+      final imageCenter = Offset(decodedImage.width / 2, decodedImage.height / 2);
+
       final inputImage = InputImage.fromFilePath(image.path);
       final textRecognizer = TextRecognizer(script: TextRecognitionScript.latin);
       final recognizedText = await textRecognizer.processImage(inputImage);
       await textRecognizer.close();
-      
-      final text = recognizedText.text;
-      final regex = RegExp(r'T\.\d+\.\d+');
-      final match = regex.firstMatch(text);
 
-      if (match == null) {
+      final regex = RegExp(r'T\.\d+\.\d+');
+      double minDistance = double.infinity;
+      String? bestMatchCode;
+
+      for (final block in recognizedText.blocks) {
+        for (final line in block.lines) {
+          final match = regex.firstMatch(line.text);
+          if (match != null) {
+            final rect = line.boundingBox;
+            final center = Offset(rect.left + rect.width / 2, rect.top + rect.height / 2);
+            final distance = (center - imageCenter).distance;
+            if (distance < minDistance) {
+              minDistance = distance;
+              bestMatchCode = match.group(0);
+            }
+          }
+        }
+      }
+
+      if (bestMatchCode == null) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Kode barang tidak ditemukan")));
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Kode barang tidak ditemukan di dalam frame")));
         }
         return;
       }
 
-      final code = match.group(0)!;
+      final code = bestMatchCode;
       final item = await ref.read(itemProvider.notifier).getItem(code);
 
       if (item == null) {
@@ -281,7 +303,8 @@ class _StockOutPageState extends ConsumerState<StockOutPage> {
       ),
       body: Stack(
         children: [
-          CameraPreview(_controller!),
+          Positioned.fill(child: CameraPreview(_controller!)),
+          const ScannerOverlay(borderColor: Colors.orange),
           if (_isProcessing && !_isDialogOpen)
             const Center(child: CircularProgressIndicator()),
           Positioned(
