@@ -1,0 +1,77 @@
+{
+  "lokasi": "Gudang Divjat",
+  "data_stock": [
+    {
+      "kode": "T.230001003.00470",
+      "nama_barang": "INSERT APKT 10030 PDER - M8215",
+      "jumlah": 60,
+      "satuan": "PCS"
+    },
+    {
+      "kode": "T.230200300.04020",
+      "nama_barang": "INSERT CH0402 ACP 300",
+      "jumlah": 50,
+      "satuan": "PCS"
+    },
+    {
+      "kode": "T.230300103.02400",
+      "nama_barang": "INSERT RCHX 10T3M0",
+      "jumlah": 50,
+      "satuan": "PCS"
+    },
+    {
+      "kode": "T.191511302.80320",
+      "nama_barang": "TWIST DRILL CARBIDE DIA. 3,2X28X66",
+      "jumlah": 9,
+      "satuan": "PCS"
+    },
+    {
+      "kode": "T.181611689.00850",
+      "nama_barang": "TWIST DRILL DIA. 85X89 RSTOCK 1873 CARB",
+      "jumlah": 1,
+      "satuan": "PCS"
+    },
+    {
+      "kode": "T.191122200.00780",
+      "nama_barang": "TWIST DRILL HSS CO DIN 338 DIA. 7,8X75X117",
+      "jumlah": 14,
+      "satuan": "PCS"
+    },
+    {
+      "kode": "T.111712305.00300",
+      "nama_barang": "END MILL CARB BALLNOSE DIA. 3 2-2",
+      "jumlah": 16,
+      "satuan": "PCS"
+    },
+    {
+      "kode": "T.110901257.00500",
+      "nama_barang": "END MILL CARB DIA. 6X12X57 C5141-060025,024",
+      "jumlah": 13,
+      "satuan": "PCS"
+    },
+    {
+      "kode": "T.111712305.00300",
+      "nama_barang": "END MILL CARB DIA. 4 SCM770-0400204R-F0008HB",
+      "jumlah": 8,
+      "satuan": "PCS"
+    },
+    {
+      "kode": "T.012532580.00280",
+      "nama_barang": "REAMER MACHINE CARB DIA. 2,8X25X80 H7",
+      "jumlah": 14,
+      "satuan": "PCS"
+    },
+    {
+      "kode": "T.012111303.00340",
+      "nama_barang": "REAMER CARBIDE DIN 212 DIA. 3,4 H7",
+      "jumlah": 9,
+      "satuan": "PCS"
+    },
+    {
+      "kode": "T.012111306.00155",
+      "nama_barang": "REAMER MACHINE HSS CO DIN 212 DIA. 1,55 H7",
+      "jumlah": 8,
+      "satuan": "PCS"
+    }
+  ]
+}
