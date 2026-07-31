@@ -8,6 +8,7 @@ import 'screens/item_list_page.dart';
 import 'screens/stock_in_page.dart';
 import 'screens/stock_out_page.dart';
 import 'screens/add_item_page.dart';
+import 'screens/report_page.dart';
 import 'screens/history_page.dart';
 
 void main() {
@@ -32,6 +33,7 @@ class NoventraApp extends ConsumerWidget {
         GoRoute(path: '/stock_in', builder: (_, __) => const StockInPage()),
         GoRoute(path: '/stock_out', builder: (_, __) => const StockOutPage()),
         GoRoute(path: '/add_item', builder: (_, __) => const AddItemPage()),
+        GoRoute(path: '/report', builder: (_, __) => const ReportPage()),
         GoRoute(path: '/history', builder: (_, __) => const HistoryPage()),
       ],
     );

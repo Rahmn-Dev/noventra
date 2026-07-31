@@ -44,6 +44,9 @@ dependencies:
   # Routing
   go_router: ^14.0.0
   camera: ^0.10.5+3
+  pdf: ^3.13.0
+  printing: ^5.15.0
+  intl: ^0.20.3
 
 dev_dependencies:
   flutter_test:
@@ -69,6 +72,7 @@ flutter:
 
   assets:
     - assets/default_stock.json
+    - assets/pindad_logo.png
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

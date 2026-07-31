@@ -146,6 +146,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               color: Colors.purple.shade600,
               onTap: () => context.go('/add_item'),
             ),
+            const SizedBox(height: 16),
+            _buildActionCard(
+              title: 'Report Barang',
+              icon: Icons.picture_as_pdf,
+              color: Colors.deepOrange.shade600,
+              onTap: () => context.go('/report'),
+            ),
           ],
         ),
       ),

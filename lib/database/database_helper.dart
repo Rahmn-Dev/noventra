@@ -126,4 +126,50 @@ class DatabaseHelper {
     final maps = await db.query('transactions', orderBy: 'timestamp DESC');
     return maps.map((m) => TransactionRecord.fromMap(m)).toList();
   }
+
+  Future<int> getInitialStockBalance(String itemCode, DateTime beforeDate) async {
+    final db = await database;
+    
+    // First, get the current stock
+    final itemResult = await db.query('items', columns: ['stock'], where: 'code = ?', whereArgs: [itemCode]);
+    if (itemResult.isEmpty) return 0;
+    
+    int currentStock = (itemResult.first['stock'] as num).toInt();
+
+    // Sum all transactions that happened ON or AFTER the beforeDate
+    final txResult = await db.rawQuery(
+      'SELECT SUM(delta) as future_delta FROM transactions WHERE itemCode = ? AND timestamp >= ?',
+      [itemCode, beforeDate.toIso8601String()],
+    );
+    
+    int futureDelta = 0;
+    if (txResult.isNotEmpty && txResult.first['future_delta'] != null) {
+      futureDelta = (txResult.first['future_delta'] as num).toInt();
+    }
+
+    // The stock before the date is simply the current stock minus the changes that happened since then
+    return currentStock - futureDelta;
+  }
+
+  Future<List<TransactionRecord>> getTransactionsByDateRange(DateTime start, DateTime end, {String? itemCode, bool? isMasuk}) async {
+    final db = await database;
+    String where = 'timestamp >= ? AND timestamp <= ?';
+    List<dynamic> whereArgs = [start.toIso8601String(), end.toIso8601String()];
+    
+    if (itemCode != null) {
+      where += ' AND itemCode = ?';
+      whereArgs.add(itemCode);
+    }
+    
+    if (isMasuk != null) {
+      if (isMasuk) {
+        where += ' AND delta > 0';
+      } else {
+        where += ' AND delta < 0';
+      }
+    }
+    
+    final maps = await db.query('transactions', where: where, whereArgs: whereArgs, orderBy: 'timestamp ASC');
+    return maps.map((m) => TransactionRecord.fromMap(m)).toList();
+  }
 }
