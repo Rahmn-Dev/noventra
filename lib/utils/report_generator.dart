@@ -100,14 +100,34 @@ class ReportGenerator {
             pw.SizedBox(height: 15),
 
             // Item Info
-            _buildInfoRow('Kode Material', item.code),
-            _buildInfoRow('Nama Material', item.name),
-            _buildInfoRow('Ukuran', '...................................................'),
-            _buildInfoRow('Satuan', '...................................................'),
             pw.Row(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
               children: [
-                pw.Expanded(child: _buildInfoRow('Merk/Pabrik/Asal', '.........................................')),
-                pw.Expanded(child: _buildInfoRow('Golongan', '.....................')),
+                pw.Expanded(
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      _buildInfoRow('Kode Material', item.code),
+                      _buildInfoRow('Nama Material', item.name),
+                      _buildInfoRow('Ukuran', '...................................................'),
+                      _buildInfoRow('Satuan', '...................................................'),
+                      pw.Row(
+                        children: [
+                          pw.Expanded(child: _buildInfoRow('Merk/Pabrik/Asal', '.........................................')),
+                          pw.Expanded(child: _buildInfoRow('Golongan', '.....................')),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                pw.SizedBox(width: 15),
+                pw.BarcodeWidget(
+                  barcode: pw.Barcode.code128(),
+                  data: item.code,
+                  width: 120,
+                  height: 40,
+                  drawText: true,
+                ),
               ],
             ),
             pw.SizedBox(height: 15),
@@ -323,16 +343,24 @@ class ReportGenerator {
               headers: ['NO.', 'Tanggal', 'Kode Material', 'Nama Barang', 'Jumlah', 'Keterangan'],
               data: data,
               border: pw.TableBorder.all(),
-              headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+              headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10),
               headerAlignment: pw.Alignment.center,
-              cellAlignment: pw.Alignment.centerLeft,
+              cellStyle: const pw.TextStyle(fontSize: 10),
+              cellAlignments: {
+                0: pw.Alignment.center, // NO
+                1: pw.Alignment.center, // Tanggal
+                2: pw.Alignment.center, // Kode Material
+                3: pw.Alignment.centerLeft, // Nama Barang
+                4: pw.Alignment.center, // Jumlah
+                5: pw.Alignment.centerLeft, // Keterangan
+              },
               columnWidths: {
-                0: const pw.FlexColumnWidth(1),
-                1: const pw.FlexColumnWidth(2),
-                2: const pw.FlexColumnWidth(2),
-                3: const pw.FlexColumnWidth(3),
-                4: const pw.FlexColumnWidth(1.5),
-                5: const pw.FlexColumnWidth(2.5),
+                0: const pw.FlexColumnWidth(0.8), // NO. (dikecilkan tapi agar tidak turun ke bawah)
+                1: const pw.FlexColumnWidth(2.0), // Tanggal
+                2: const pw.FlexColumnWidth(3.0), // Kode Material (dipanjangkan)
+                3: const pw.FlexColumnWidth(3.0), // Nama Barang
+                4: const pw.FlexColumnWidth(1.0), // Jumlah (dikecilkan)
+                5: const pw.FlexColumnWidth(2.2), // Keterangan
               },
             ),
           ];
@@ -359,5 +387,97 @@ class ReportGenerator {
         ],
       ),
     );
+  }
+  static Future<Uint8List> generateBarcodePDF(Item item) async {
+    final pdf = pw.Document();
+
+    pdf.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.all(32),
+        build: (pw.Context context) {
+          return pw.Center(
+            child: pw.Column(
+              mainAxisAlignment: pw.MainAxisAlignment.center,
+              children: [
+                pw.Text(
+                  item.name,
+                  style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold),
+                  textAlign: pw.TextAlign.center,
+                ),
+                pw.SizedBox(height: 20),
+                pw.BarcodeWidget(
+                  barcode: pw.Barcode.code128(),
+                  data: item.code,
+                  width: 300,
+                  height: 100,
+                  drawText: true,
+                ),
+                pw.SizedBox(height: 10),
+                pw.Text(
+                  'Kode: ${item.code}',
+                  style: const pw.TextStyle(fontSize: 16),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+
+    return pdf.save();
+  }
+
+  static Future<Uint8List> generateBulkBarcodePDF(List<Item> items) async {
+    final pdf = pw.Document();
+
+    pdf.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.all(32),
+        build: (pw.Context context) {
+          return [
+            pw.Center(
+              child: pw.Text(
+                'Daftar Barcode Material',
+                style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold),
+              ),
+            ),
+            pw.SizedBox(height: 20),
+            pw.Wrap(
+              spacing: 20,
+              runSpacing: 30,
+              children: items.map((item) {
+                return pw.Container(
+                  width: 150,
+                  child: pw.Column(
+                    mainAxisSize: pw.MainAxisSize.min,
+                    children: [
+                      pw.Text(
+                        item.name,
+                        style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold),
+                        textAlign: pw.TextAlign.center,
+                        maxLines: 2,
+                      ),
+                      pw.SizedBox(height: 5),
+                      pw.BarcodeWidget(
+                        barcode: pw.Barcode.code128(),
+                        data: item.code,
+                        width: 150,
+                        height: 50,
+                        drawText: true,
+                        textStyle: const pw.TextStyle(fontSize: 8),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
+          ];
+        },
+      ),
+    );
+
+    return pdf.save();
   }
 }

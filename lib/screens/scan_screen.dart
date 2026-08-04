@@ -3,6 +3,7 @@ import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
+import 'package:google_mlkit_barcode_scanning/google_mlkit_barcode_scanning.dart';
 import '../database/database_helper.dart';
 import '../widgets/scanner_overlay.dart';
 import 'package:go_router/go_router.dart';
@@ -50,24 +51,39 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
       final imageCenter = Offset(decodedImage.width / 2, decodedImage.height / 2);
 
       final inputImage = InputImage.fromFilePath(image.path);
-      final textRecognizer = TextRecognizer(script: TextRecognitionScript.latin);
-      final recognizedText = await textRecognizer.processImage(inputImage);
-      await textRecognizer.close();
-
-      final regex = RegExp(r'T\.\d+\.\d+');
-      double minDistance = double.infinity;
+      
       String? bestMatchCode;
+      
+      // 1. Try Barcode Scanning first
+      final barcodeScanner = BarcodeScanner();
+      final barcodes = await barcodeScanner.processImage(inputImage);
+      await barcodeScanner.close();
+      
+      if (barcodes.isNotEmpty) {
+        // Just take the first detected barcode
+        bestMatchCode = barcodes.first.rawValue;
+      }
+      
+      // 2. Fallback to OCR Text Recognition if no barcode found
+      if (bestMatchCode == null) {
+        final textRecognizer = TextRecognizer(script: TextRecognitionScript.latin);
+        final recognizedText = await textRecognizer.processImage(inputImage);
+        await textRecognizer.close();
 
-      for (final block in recognizedText.blocks) {
-        for (final line in block.lines) {
-          final match = regex.firstMatch(line.text);
-          if (match != null) {
-            final rect = line.boundingBox;
-            final center = Offset(rect.left + rect.width / 2, rect.top + rect.height / 2);
-            final distance = (center - imageCenter).distance;
-            if (distance < minDistance) {
-              minDistance = distance;
-              bestMatchCode = match.group(0);
+        final regex = RegExp(r'T\.\d+\.\d+');
+        double minDistance = double.infinity;
+
+        for (final block in recognizedText.blocks) {
+          for (final line in block.lines) {
+            final match = regex.firstMatch(line.text);
+            if (match != null) {
+              final rect = line.boundingBox;
+              final center = Offset(rect.left + rect.width / 2, rect.top + rect.height / 2);
+              final distance = (center - imageCenter).distance;
+              if (distance < minDistance) {
+                minDistance = distance;
+                bestMatchCode = match.group(0);
+              }
             }
           }
         }

@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:barcode_widget/barcode_widget.dart';
+import 'package:printing/printing.dart';
 import '../providers/item_provider.dart';
+import '../utils/report_generator.dart';
 
 class ItemListPage extends ConsumerStatefulWidget {
   const ItemListPage({Key? key}) : super(key: key);
@@ -45,6 +48,25 @@ class _ItemListPageState extends ConsumerState<ItemListPage> {
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.go('/'),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.print),
+            tooltip: 'Cetak Semua Barcode',
+            onPressed: () {
+              final itemsToPrint = filteredItems;
+              if (itemsToPrint.isEmpty) return;
+              
+              Navigator.of(context).push(MaterialPageRoute(
+                builder: (context) => Scaffold(
+                  appBar: AppBar(title: const Text('Cetak Semua Barcode')),
+                  body: PdfPreview(
+                    build: (format) => ReportGenerator.generateBulkBarcodePDF(itemsToPrint),
+                  ),
+                ),
+              ));
+            },
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -99,6 +121,15 @@ class _ItemListPageState extends ConsumerState<ItemListPage> {
                                 Text('Kode: ${item.code}', style: TextStyle(color: Colors.grey[700])),
                                 Text('Stok: ${item.stock}', style: TextStyle(color: item.stock > 0 ? Colors.green : Colors.red, fontWeight: FontWeight.bold)),
                               ],
+                            ),
+                          ),
+                          trailing: SizedBox(
+                            width: 80,
+                            height: 40,
+                            child: BarcodeWidget(
+                              barcode: Barcode.code128(),
+                              data: item.code,
+                              drawText: false,
                             ),
                           ),
                           onTap: () => context.go('/item/${item.code}'),

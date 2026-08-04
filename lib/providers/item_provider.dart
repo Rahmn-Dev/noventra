@@ -28,8 +28,8 @@ class ItemNotifier extends StateNotifier<List<Item>> {
     await loadAll();
   }
 
-  Future<void> addTransaction(String code, int delta, {String? note}) async {
-    final tr = TransactionRecord(itemCode: code, delta: delta, timestamp: DateTime.now(), note: note);
+  Future<void> addTransaction(String code, int delta, {String? note, DateTime? date}) async {
+    final tr = TransactionRecord(itemCode: code, delta: delta, timestamp: date ?? DateTime.now(), note: note);
     await DatabaseHelper().insertTransaction(tr);
   }
 

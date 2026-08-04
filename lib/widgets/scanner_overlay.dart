@@ -7,8 +7,8 @@ class ScannerOverlay extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
-    final frameWidth = size.width * 0.75;
-    final frameHeight = 150.0;
+    final frameWidth = size.width * 0.9;
+    final frameHeight = 300.0;
 
     return Stack(
       children: [

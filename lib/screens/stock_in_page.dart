@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
+import 'package:google_mlkit_barcode_scanning/google_mlkit_barcode_scanning.dart';
 import '../providers/item_provider.dart';
 import '../models/item.dart';
 import '../widgets/scanner_overlay.dart';
@@ -39,6 +40,8 @@ class _StockInPageState extends ConsumerState<StockInPage> {
   void _showQuantityDialog(Item item) {
     final controller = TextEditingController();
     final noteController = TextEditingController();
+    DateTime selectedDate = DateTime.now();
+    
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -46,41 +49,73 @@ class _StockInPageState extends ConsumerState<StockInPage> {
         title: Text('Barang Masuk: ${item.name}'),
         content: StatefulBuilder(
           builder: (context, setState) {
-            return Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Kode: ${item.code}'),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: controller,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'Jumlah Qty',
-                    border: OutlineInputBorder(),
+            return SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Kode: ${item.code}'),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: controller,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'Jumlah Qty',
+                      border: OutlineInputBorder(),
+                    ),
+                    autofocus: true,
                   ),
-                  autofocus: true,
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  children: [10, 50, 100, 500, 1000].map((val) => ActionChip(
-                    label: Text('+$val'),
-                    onPressed: () {
-                      final current = int.tryParse(controller.text) ?? 0;
-                      controller.text = (current + val).toString();
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    children: [10, 50, 100, 500, 1000].map((val) => ActionChip(
+                      label: Text('+$val'),
+                      onPressed: () {
+                        final current = int.tryParse(controller.text) ?? 0;
+                        controller.text = (current + val).toString();
+                      },
+                    )).toList(),
+                  ),
+                  const SizedBox(height: 12),
+                  // Date Picker Widget
+                  InkWell(
+                    onTap: () async {
+                      final picked = await showDatePicker(
+                        context: context,
+                        initialDate: selectedDate,
+                        firstDate: DateTime(2020),
+                        lastDate: DateTime.now(),
+                      );
+                      if (picked != null) {
+                        setState(() {
+                          selectedDate = picked;
+                        });
+                      }
                     },
-                  )).toList(),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: noteController,
-                  decoration: const InputDecoration(
-                    labelText: 'Catatan (Opsional)',
-                    border: OutlineInputBorder(),
+                    child: InputDecorator(
+                      decoration: const InputDecoration(
+                        labelText: 'Tanggal Masuk',
+                        border: OutlineInputBorder(),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text("${selectedDate.day}-${selectedDate.month}-${selectedDate.year}"),
+                          const Icon(Icons.calendar_today, size: 20),
+                        ],
+                      ),
+                    ),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: noteController,
+                    decoration: const InputDecoration(
+                      labelText: 'Catatan (Opsional)',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ],
+              ),
             );
           },
         ),
@@ -104,7 +139,7 @@ class _StockInPageState extends ConsumerState<StockInPage> {
               _isDialogOpen = false;
               
               await ref.read(itemProvider.notifier).updateStock(item.code, qty);
-              await ref.read(itemProvider.notifier).addTransaction(item.code, qty, note: note.isEmpty ? null : note);
+              await ref.read(itemProvider.notifier).addTransaction(item.code, qty, note: note.isEmpty ? null : note, date: selectedDate);
 
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -135,24 +170,39 @@ class _StockInPageState extends ConsumerState<StockInPage> {
       final imageCenter = Offset(decodedImage.width / 2, decodedImage.height / 2);
 
       final inputImage = InputImage.fromFilePath(image.path);
-      final textRecognizer = TextRecognizer(script: TextRecognitionScript.latin);
-      final recognizedText = await textRecognizer.processImage(inputImage);
-      await textRecognizer.close();
-
-      final regex = RegExp(r'T\.\d+\.\d+');
-      double minDistance = double.infinity;
+      
       String? bestMatchCode;
+      
+      // 1. Try Barcode Scanning first
+      final barcodeScanner = BarcodeScanner();
+      final barcodes = await barcodeScanner.processImage(inputImage);
+      await barcodeScanner.close();
+      
+      if (barcodes.isNotEmpty) {
+        // Just take the first detected barcode
+        bestMatchCode = barcodes.first.rawValue;
+      }
+      
+      // 2. Fallback to OCR Text Recognition if no barcode found
+      if (bestMatchCode == null) {
+        final textRecognizer = TextRecognizer(script: TextRecognitionScript.latin);
+        final recognizedText = await textRecognizer.processImage(inputImage);
+        await textRecognizer.close();
 
-      for (final block in recognizedText.blocks) {
-        for (final line in block.lines) {
-          final match = regex.firstMatch(line.text);
-          if (match != null) {
-            final rect = line.boundingBox;
-            final center = Offset(rect.left + rect.width / 2, rect.top + rect.height / 2);
-            final distance = (center - imageCenter).distance;
-            if (distance < minDistance) {
-              minDistance = distance;
-              bestMatchCode = match.group(0);
+        final regex = RegExp(r'T\.\d+\.\d+');
+        double minDistance = double.infinity;
+
+        for (final block in recognizedText.blocks) {
+          for (final line in block.lines) {
+            final match = regex.firstMatch(line.text);
+            if (match != null) {
+              final rect = line.boundingBox;
+              final center = Offset(rect.left + rect.width / 2, rect.top + rect.height / 2);
+              final distance = (center - imageCenter).distance;
+              if (distance < minDistance) {
+                minDistance = distance;
+                bestMatchCode = match.group(0);
+              }
             }
           }
         }

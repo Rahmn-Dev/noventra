@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:barcode_widget/barcode_widget.dart';
+import 'package:printing/printing.dart';
 import '../models/item.dart';
 import '../providers/item_provider.dart';
 import '../models/transaction.dart';
 import '../database/database_helper.dart';
+import '../utils/report_generator.dart';
 
 class ItemDetailScreen extends ConsumerStatefulWidget {
   final String itemCode;
@@ -173,7 +176,55 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('Kode: ${_item!.code}', style: const TextStyle(fontSize: 16, color: Colors.grey)),
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
+            InkWell(
+              onTap: () {
+                showDialog(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: Text('Barcode ${_item!.name}'),
+                    content: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        BarcodeWidget(
+                          barcode: Barcode.code128(),
+                          data: _item!.code,
+                          width: double.infinity,
+                          height: 150,
+                          drawText: true,
+                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 20),
+                        ElevatedButton.icon(
+                          onPressed: () {
+                            Navigator.pop(context);
+                            Navigator.of(context).push(MaterialPageRoute(
+                              builder: (context) => Scaffold(
+                                appBar: AppBar(title: const Text('Cetak Barcode')),
+                                body: PdfPreview(
+                                  build: (format) => ReportGenerator.generateBarcodePDF(_item!),
+                                ),
+                              ),
+                            ));
+                          },
+                          icon: const Icon(Icons.print),
+                          label: const Text('Cetak Barcode'),
+                          style: ElevatedButton.styleFrom(backgroundColor: Colors.teal, foregroundColor: Colors.white),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+              child: BarcodeWidget(
+                barcode: Barcode.code128(),
+                data: _item!.code,
+                width: 200,
+                height: 60,
+                drawText: true,
+              ),
+            ),
+            const SizedBox(height: 16),
             Text(_item!.name, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
             const SizedBox(height: 16),
             Text('Lokasi: ${_item!.location}', style: const TextStyle(fontSize: 16)),
